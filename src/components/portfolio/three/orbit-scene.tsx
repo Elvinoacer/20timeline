@@ -7,6 +7,7 @@
 import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Float, Sparkles } from '@react-three/drei'
+import { useReducedMotion } from 'framer-motion'
 import * as THREE from 'three'
 
 import StudioEnv from './studio-env'
@@ -59,7 +60,7 @@ function Heart() {
       </mesh>
       <mesh scale={0.78}>
         <icosahedronGeometry args={[1, 1]} />
-        <meshStandardMaterial color="#d8ccf5" metalness={1} roughness={0.18} envMapIntensity={1.6} wireframe={false} transparent opacity={0.28} />
+        <meshStandardMaterial color="#d8ccf5" metalness={1} roughness={0.18} envMapIntensity={1.6} transparent opacity={0.28} />
       </mesh>
     </group>
   )
@@ -132,15 +133,18 @@ function Bands() {
 }
 
 export default function OrbitScene({ active = true }: { active?: boolean }) {
+  const reduced = useReducedMotion() ?? false
+  const animate = active && !reduced
+
   return (
     <Canvas
-      frameloop={active ? 'always' : 'never'}
+      frameloop={animate ? 'always' : 'never'}
       dpr={[1, 1.5]}
       camera={{ position: [0, 1.4, 6.4], fov: 40 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       style={{ background: 'transparent' }}
     >
-      <CameraRig enabled={active} />
+      <CameraRig enabled={animate} />
       <ambientLight intensity={0.4} />
       <pointLight position={[5, 4, 5]} intensity={20} color="#ffffff" />
       <pointLight position={[-5, -3, 3]} intensity={14} color={VIOLET} />
