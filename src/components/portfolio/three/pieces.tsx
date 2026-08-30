@@ -11,38 +11,59 @@ import * as THREE from 'three'
 const VIOLET = '#8b5cf6'
 const SOFT = '#c4b5fd'
 
+type RigProps = {
+  children: React.ReactNode
+  amount?: number
+  depth?: number
+}
+
 /* ------------------------------------------------------------------ */
-/* Rig — pointer-parallax group wrapper                                */
+/* Rig — scoped pointer parallax + subtle idle drift                    */
 /* ------------------------------------------------------------------ */
 
-export function Rig({ children, amount = 0.16 }: { children: React.ReactNode; amount?: number }) {
+export function Rig({ children, amount = 0.16, depth = 0.025 }: RigProps) {
   const ref = useRef<THREE.Group>(null)
-  const pointer = useRef({ x: 0, y: 0 })
+  const target = useRef({ x: 0, y: 0 })
 
-  useEffect(() => {
-    const onMove = (e: PointerEvent) => {
-      pointer.current.x = (e.clientX / window.innerWidth) * 2 - 1
-      pointer.current.y = (e.clientY / window.innerHeight) * 2 - 1
-    }
-    window.addEventListener('pointermove', onMove, { passive: true })
-    return () => window.removeEventListener('pointermove', onMove)
-  }, [])
-
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (!ref.current) return
-    const k = 1 - Math.pow(0.001, delta) // framerate-independent lerp
-    ref.current.rotation.y += (pointer.current.x * amount - ref.current.rotation.y) * k
-    ref.current.rotation.x += (pointer.current.y * amount * 0.62 - ref.current.rotation.x) * k
+
+    const k = 1 - Math.pow(0.001, delta)
+    target.current.x = state.pointer.x
+    target.current.y = state.pointer.y
+
+    ref.current.rotation.y += (target.current.x * amount - ref.current.rotation.y) * k
+    ref.current.rotation.x += (target.current.y * amount * 0.62 - ref.current.rotation.x) * k
+    ref.current.position.x += (target.current.x * depth - ref.current.position.x) * k
+    ref.current.position.y += (target.current.y * depth * 0.62 - ref.current.position.y) * k
   })
 
   return <group ref={ref}>{children}</group>
 }
 
 /* ------------------------------------------------------------------ */
+/* CameraRig — gentle camera response makes the scene feel deeper       */
+/* ------------------------------------------------------------------ */
+
+export function CameraRig({ enabled = true }: { enabled?: boolean }) {
+  const target = useMemo(() => new THREE.Vector3(), [])
+
+  useFrame(({ camera, pointer }, delta) => {
+    if (!enabled) return
+    const k = 1 - Math.pow(0.001, delta)
+    target.set(pointer.x * 0.42, pointer.y * 0.22, 9)
+    camera.position.lerp(target, k)
+    camera.lookAt(0, 0, 0)
+  })
+
+  return null
+}
+
+/* ------------------------------------------------------------------ */
 /* StarShell — violet starfield in a squashed spherical shell          */
 /* ------------------------------------------------------------------ */
 
-export function StarShell({ count = 420 }: { count?: number }) {
+export function StarShell({ count = 420, speed = 0.03 }: { count?: number; speed?: number }) {
   const ref = useRef<THREE.Points>(null)
 
   const { geometry, material } = useMemo(() => {
@@ -93,7 +114,7 @@ export function StarShell({ count = 420 }: { count?: number }) {
   useFrame((state) => {
     if (!ref.current) return
     const t = state.clock.elapsedTime
-    ref.current.rotation.y = t * 0.03
+    ref.current.rotation.y = t * speed
     ref.current.rotation.x = Math.sin(t * 0.11) * 0.05
   })
 
@@ -101,11 +122,11 @@ export function StarShell({ count = 420 }: { count?: number }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* useHaloTexture — radial-gradient glow sprite (generated once)       */
+/* useHaloTexture — radial-gradient glow sprite                         */
 /* ------------------------------------------------------------------ */
 
 export function useHaloTexture() {
-  return useMemo(() => {
+  const texture = useMemo(() => {
     const size = 256
     const cv = document.createElement('canvas')
     cv.width = size
@@ -122,4 +143,8 @@ export function useHaloTexture() {
     tex.colorSpace = THREE.SRGBColorSpace
     return tex
   }, [])
+
+  useEffect(() => () => texture.dispose(), [texture])
+
+  return texture
 }
