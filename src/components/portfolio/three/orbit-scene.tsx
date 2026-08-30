@@ -144,7 +144,7 @@ export default function OrbitScene({ active = true }: { active?: boolean }) {
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       style={{ background: 'transparent' }}
     >
-      <CameraRig enabled={animate} />
+      <CameraRig enabled={animate} baseZ={6.4} />
       <ambientLight intensity={0.4} />
       <pointLight position={[5, 4, 5]} intensity={20} color="#ffffff" />
       <pointLight position={[-5, -3, 3]} intensity={14} color={VIOLET} />
