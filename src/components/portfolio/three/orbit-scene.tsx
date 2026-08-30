@@ -2,11 +2,6 @@
 
 /* ==========================================================================
    STACK CONSTELLATION — Act 07 orbit scene
-   --------------------------------------------------------------------------
-   The stack as a gravitational system: a violet heart wrapped in four
-   orbital bands (FRONTEND / MOBILE / BACKEND / PRACTICE), each carrying
-   chrome satellites. Pointer parallax + slow drift. Compact, cheap,
-   pauses when offscreen.
    ========================================================================== */
 
 import { useRef } from 'react'
@@ -15,29 +10,37 @@ import { Float, Sparkles } from '@react-three/drei'
 import * as THREE from 'three'
 
 import StudioEnv from './studio-env'
-import { Rig, useHaloTexture } from './pieces'
+import { CameraRig, Rig, useHaloTexture } from './pieces'
 
 const VIOLET = '#8b5cf6'
 const SOFT = '#c4b5fd'
 
-/* ------------------------------------------------------------------ */
-/* heart + halo                                                        */
-/* ------------------------------------------------------------------ */
-
 function Heart() {
   const heartRef = useRef<THREE.Mesh>(null)
   const haloRef = useRef<THREE.Sprite>(null)
+  const pulseRef = useRef<THREE.Mesh>(null)
   const halo = useHaloTexture()
 
   useFrame((state) => {
     const t = state.clock.elapsedTime
+    const x = state.pointer.x
+    const y = state.pointer.y
+
     if (heartRef.current) {
       const s = 1 + 0.06 * (Math.sin(t * 1.1) * 0.5 + 0.5)
       heartRef.current.scale.setScalar(s)
+      heartRef.current.position.x = x * 0.05
+      heartRef.current.position.y = y * 0.04
     }
     if (haloRef.current) {
       const s = 3.4 + 0.25 * (Math.sin(t * 1.1) * 0.5 + 0.5)
       haloRef.current.scale.set(s, s, 1)
+    }
+    if (pulseRef.current) {
+      const p = 1 + 0.06 * (Math.sin(t * 0.9) * 0.5 + 0.5)
+      pulseRef.current.scale.setScalar(p)
+      pulseRef.current.rotation.x = t * 0.12
+      pulseRef.current.rotation.y = -t * 0.16
     }
   })
 
@@ -46,22 +49,21 @@ function Heart() {
       <sprite ref={haloRef} position={[0, 0, -0.6]} scale={[3.4, 3.4, 1]}>
         <spriteMaterial map={halo} transparent opacity={0.5} blending={THREE.AdditiveBlending} depthWrite={false} />
       </sprite>
+      <mesh ref={pulseRef}>
+        <icosahedronGeometry args={[0.84, 1]} />
+        <meshBasicMaterial color={VIOLET} wireframe transparent opacity={0.11} />
+      </mesh>
       <mesh ref={heartRef}>
-        <icosahedronGeometry args={[0.5, 1]} />
+        <icosahedronGeometry args={[0.5, 2]} />
         <meshStandardMaterial color="#ffffff" emissive={SOFT} emissiveIntensity={2.4} roughness={0.3} />
       </mesh>
-      {/* thin chrome shell around the heart */}
-      <mesh>
-        <icosahedronGeometry args={[0.78, 0]} />
-        <meshStandardMaterial color="#d8ccf5" metalness={1} roughness={0.18} envMapIntensity={1.6} wireframe={false} transparent opacity={0.32} />
+      <mesh scale={0.78}>
+        <icosahedronGeometry args={[1, 1]} />
+        <meshStandardMaterial color="#d8ccf5" metalness={1} roughness={0.18} envMapIntensity={1.6} wireframe={false} transparent opacity={0.28} />
       </mesh>
     </group>
   )
 }
-
-/* ------------------------------------------------------------------ */
-/* orbital bands with satellites                                       */
-/* ------------------------------------------------------------------ */
 
 type BandCfg = { r: number; tilt: [number, number, number]; speed: number; sats: number }
 
@@ -114,9 +116,8 @@ function Bands() {
     <group>
       {BANDS.map((band, i) => (
         <group key={i} rotation={band.tilt}>
-          {/* orbit guide ring */}
           <mesh rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[band.r, 0.006, 8, 128]} />
+            <torusGeometry args={[band.r, 0.006, 8, 96]} />
             <meshBasicMaterial color={SOFT} transparent opacity={0.18} />
           </mesh>
           <group ref={(el) => { spinners.current[i] = el }}>
@@ -130,29 +131,26 @@ function Bands() {
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* canvas wrapper                                                      */
-/* ------------------------------------------------------------------ */
-
 export default function OrbitScene({ active = true }: { active?: boolean }) {
   return (
     <Canvas
       frameloop={active ? 'always' : 'never'}
-      dpr={[1, 1.6]}
+      dpr={[1, 1.5]}
       camera={{ position: [0, 1.4, 6.4], fov: 40 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       style={{ background: 'transparent' }}
     >
+      <CameraRig enabled={active} />
       <ambientLight intensity={0.4} />
       <pointLight position={[5, 4, 5]} intensity={20} color="#ffffff" />
       <pointLight position={[-5, -3, 3]} intensity={14} color={VIOLET} />
       <StudioEnv intensity={0.85} />
-      <Rig amount={0.1}>
+      <Rig amount={0.08} depth={0.014}>
         <Heart />
         <Bands />
         <Float speed={1.2} rotationIntensity={0.5} floatIntensity={1.2}>
           <mesh position={[-3.9, 1.4, -2.6]} rotation={[0.7, 0.3, 0.2]}>
-            <torusKnotGeometry args={[0.34, 0.1, 110, 16]} />
+            <torusKnotGeometry args={[0.34, 0.1, 96, 14]} />
             <meshStandardMaterial color="#b7a5ec" metalness={1} roughness={0.16} envMapIntensity={1.6} />
           </mesh>
         </Float>
@@ -162,7 +160,7 @@ export default function OrbitScene({ active = true }: { active?: boolean }) {
             <meshStandardMaterial color="#d8ccf5" metalness={1} roughness={0.12} envMapIntensity={1.7} />
           </mesh>
         </Float>
-        <Sparkles count={46} scale={[9, 4.5, 3]} size={1.8} speed={0.3} color={SOFT} opacity={0.5} />
+        <Sparkles count={36} scale={[9, 4.5, 3]} size={1.8} speed={0.24} color={SOFT} opacity={0.5} />
       </Rig>
     </Canvas>
   )
