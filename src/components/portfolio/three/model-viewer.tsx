@@ -2,11 +2,6 @@
 
 /* ==========================================================================
    3D MODEL VIEWER — LAB experiment
-   --------------------------------------------------------------------------
-   Real glTF PBR assets (Khronos glTF Sample Models) rendered with
-   physically-based materials, a procedural studio environment and
-   orbit controls. Models are code-split and lazy-loaded: only the
-   selected asset is fetched. Bounds/Center auto-frame any model scale.
    ========================================================================== */
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
@@ -19,10 +14,6 @@ import StudioEnv from './studio-env'
 import { cn } from '@/lib/utils'
 
 const VIOLET = '#8b5cf6'
-
-/* ------------------------------------------------------------------ */
-/* asset manifest — real Khronos sample models, bundled in /public     */
-/* ------------------------------------------------------------------ */
 
 type Asset = {
   id: string
@@ -40,21 +31,13 @@ const ASSETS: Asset[] = [
   { id: 'car', label: 'TOY CAR', url: '/models/ToyCar.glb', note: 'TOY CAR · CLEARCOAT PAINT', spin: 0.55 },
 ]
 
-/* ------------------------------------------------------------------ */
-/* the model — runtime-normalized scale (any source size → 2.2 units), */
-/* centered, gently turned. Deterministic across wildly different      */
-/* glTF authoring scales (no reliance on camera auto-fit).             */
-/* ------------------------------------------------------------------ */
-
 const TARGET_SIZE = 2.2
 
 function Model({ asset }: { asset: Asset }) {
   const { scene } = useGLTF(asset.url)
   const inner = useRef<THREE.Group>(null)
-
   const cloned = useMemo(() => scene.clone(true), [scene])
 
-  /* measure once after mount, normalize, then let Center finish the job */
   useEffect(() => {
     const g = inner.current
     if (!g) return
@@ -63,7 +46,6 @@ function Model({ asset }: { asset: Asset }) {
     if (size > 0 && Number.isFinite(size)) {
       const s = TARGET_SIZE / size
       g.scale.setScalar(s)
-      // re-center vertically so the pivot sits mid-height
       const box2 = new THREE.Box3().setFromObject(g)
       const midY = (box2.min.y + box2.max.y) / 2
       g.position.y = -midY
@@ -79,10 +61,6 @@ function Model({ asset }: { asset: Asset }) {
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* loader overlay (reads drei's global progress store)                 */
-/* ------------------------------------------------------------------ */
-
 function LoaderOverlay() {
   const { active, progress } = useProgress()
   return (
@@ -94,11 +72,14 @@ function LoaderOverlay() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
           className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#070707]/80"
+          role="status"
+          aria-live="polite"
+          aria-label={`Loading 3D model, ${Math.round(progress)} percent`}
         >
           <span className="font-mono-tight text-[10px] text-violet-300">
             LOADING ASSET · {Math.round(progress)}%
           </span>
-          <div className="h-px w-40 overflow-hidden bg-white/10">
+          <div className="h-px w-40 overflow-hidden bg-white/10" aria-hidden="true">
             <motion.div
               className="h-full bg-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.9)]"
               animate={{ width: `${progress}%` }}
@@ -111,22 +92,27 @@ function LoaderOverlay() {
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* exported viewer — canvas + asset switcher chips                     */
-/* ------------------------------------------------------------------ */
-
 export default function ModelViewer() {
   const [current, setCurrent] = useState<Asset>(ASSETS[0]!)
+  const [autoRotate, setAutoRotate] = useState(false)
 
-  /* preload only the default asset, and only once this lab is mounted */
   useEffect(() => {
     useGLTF.preload(ASSETS[0]!.url)
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setAutoRotate(!reduced.matches)
   }, [])
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full" aria-describedby="model-viewer-instructions">
+      <p id="model-viewer-instructions" className="sr-only">
+        Interactive 3D model viewer. Choose a model with the model buttons below. The visual canvas is decorative;
+        drag with a mouse or touch to orbit, scroll or pinch to zoom, and use the motion button to pause or resume
+        automatic rotation. The selected model description is announced below.
+      </p>
+
       <Canvas
-        dpr={[1, 1.75]}
+        aria-hidden="true"
+        dpr={[1, 1.6]}
         camera={{ position: [0.4, 0.7, 4.4], fov: 40 }}
         gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
         style={{ background: 'transparent' }}
@@ -150,8 +136,8 @@ export default function ModelViewer() {
 
         <OrbitControls
           makeDefault
-          autoRotate
-          autoRotateSpeed={0.9}
+          autoRotate={autoRotate}
+          autoRotateSpeed={0.72}
           enablePan={false}
           enableZoom
           minDistance={1.6}
@@ -164,21 +150,48 @@ export default function ModelViewer() {
 
       <LoaderOverlay />
 
-      {/* asset switcher */}
+      <div
+        className="absolute left-4 right-4 top-3 z-20 flex items-start justify-between gap-3"
+        aria-live="polite"
+        aria-atomic="true"
+      >
+        <div className="pointer-events-none flex min-w-0 flex-col gap-1">
+          <span className="font-mono-tight truncate text-[9px] text-violet-300/90">{current.note}</span>
+          <span className="font-mono-tight text-[9px] text-zinc-500">
+            DRAG TO ORBIT · SCROLL / PINCH TO ZOOM
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAutoRotate((value) => !value)}
+          aria-pressed={autoRotate}
+          aria-label={autoRotate ? 'Pause automatic model rotation' : 'Resume automatic model rotation'}
+          className={cn(
+            'shrink-0 rounded-full border px-2.5 py-1.5 font-mono-tight text-[9px] backdrop-blur-md transition-colors',
+            'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300',
+            autoRotate
+              ? 'border-violet-400/50 bg-violet-500/10 text-violet-200'
+              : 'border-white/15 bg-black/40 text-zinc-400'
+          )}
+        >
+          {autoRotate ? 'PAUSE MOTION' : 'PLAY MOTION'}
+        </button>
+      </div>
+
       <div
         className="absolute bottom-3 left-1/2 z-20 flex -translate-x-1/2 flex-wrap justify-center gap-1.5 px-3"
-        role="tablist"
+        role="group"
         aria-label="Choose 3D model"
       >
         {ASSETS.map((asset) => (
           <button
             key={asset.id}
             type="button"
-            role="tab"
-            aria-selected={current.id === asset.id}
+            aria-pressed={current.id === asset.id}
+            aria-label={`Show ${asset.label.toLowerCase()} 3D model`}
             onClick={() => setCurrent(asset)}
             className={cn(
-              'font-mono-tight rounded-full border px-3 py-1.5 text-[9px] backdrop-blur-md transition-all duration-300',
+              'min-h-9 rounded-full border px-3 py-1.5 font-mono-tight text-[9px] backdrop-blur-md transition-all duration-300',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400',
               current.id === asset.id
                 ? 'border-violet-400/60 bg-violet-500/20 text-violet-200 shadow-[0_0_16px_rgba(139,92,246,0.35)]'
@@ -190,11 +203,9 @@ export default function ModelViewer() {
         ))}
       </div>
 
-      {/* asset caption + drag hint */}
-      <div className="pointer-events-none absolute left-4 top-3 z-10 flex flex-col gap-1">
-        <span className="font-mono-tight text-[9px] text-violet-300/90">{current.note}</span>
-        <span className="font-mono-tight text-[9px] text-zinc-600">DRAG TO ORBIT · SCROLL TO ZOOM</span>
-      </div>
+      <p className="sr-only" aria-live="polite">
+        Selected model: {current.note}. Automatic rotation is {autoRotate ? 'on' : 'off'}.
+      </p>
     </div>
   )
 }
